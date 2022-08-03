@@ -1,0 +1,5 @@
+query Positions($skip: Int = 0, $first: Int = 100) {
+  positions(skip: $skip, first: $first) {
+    id
+  }
+}

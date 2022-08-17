@@ -18,6 +18,11 @@ pub struct Position {
     // pub timestamp: SystemTime,
 }
 
+#[derive(Debug)]
+pub struct TradingHistoryItem {
+    pub id: U256,
+}
+
 #[derive(Serialize, Deserialize)]
 struct GraphQueryRequest<T> {
     query: String,
@@ -30,7 +35,7 @@ struct GraphQueryResponse<T> {
 }
 
 #[derive(Serialize, Deserialize)]
-struct PositionsGraphQueryVariables {
+struct GraphQueryVariables {
     skip: u32,
     first: u32,
 }
@@ -42,6 +47,20 @@ struct PositionsGraphQueryResponseData {
 
 #[derive(Serialize, Deserialize)]
 struct RawPosition {
+    id: String,
+    // index: String,
+    // user: Address,
+    // marker: Address,
+    // timestamp: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TradingHistoryItemsGraphQueryResponseData {
+    tradeHistoryItems: Vec<RawTradingHistoryItem>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct RawTradingHistoryItem {
     id: String,
     // index: String,
     // user: Address,
@@ -68,7 +87,7 @@ impl GraphClient {
         loop {
             let query = GraphQueryRequest {
                 query: String::from(query_str),
-                variables: PositionsGraphQueryVariables {
+                variables: GraphQueryVariables {
                     skip: all_items.len() as u32,
                     first: GRAPHQL_BATCH_SIZE,
                 },
@@ -104,6 +123,57 @@ impl GraphClient {
             }
 
             if (result.data.positions.len() as u32) < GRAPHQL_BATCH_SIZE {
+                break;
+            }
+        }
+
+        Ok(all_items)
+    }
+
+    pub async fn get_trading_history_items(&self) -> Result<Vec<TradingHistoryItem>, GraphqlError> {
+        let mut all_items: Vec<TradingHistoryItem> = vec![];
+
+        let query_str = include_str!("./queries/trading_history_items_query.graphql");
+
+        loop {
+            let query = GraphQueryRequest {
+                query: String::from(query_str),
+                variables: GraphQueryVariables {
+                    skip: all_items.len() as u32,
+                    first: GRAPHQL_BATCH_SIZE,
+                },
+            };
+
+                        let res = self
+                .http_client
+                .post(&self.query_endpoint)
+                .timeout(GRAPHQL_TIMEOUT)
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_string(&query).map_err(GraphqlError::SerializationError)?)
+                .send()
+                .await
+                .map_err(GraphqlError::NetworkError)?;
+
+            let body: String = res.text().await.map_err(GraphqlError::NetworkError)?;
+            let result: GraphQueryResponse<TradingHistoryItemsGraphQueryResponseData> =
+                serde_json::from_str(&body).map_err(GraphqlError::SerializationError)?;
+
+            for raw_trading_history_item in result.data.tradeHistoryItems.iter() {
+                all_items.push(TradingHistoryItem {
+                    id: U256::from_dec_str(&raw_trading_history_item.id)
+                        .map_err(|_| GraphqlError::InvalidId(raw_trading_history_item.id.to_owned()))?,
+                    // index:  U256::from_dec_str(&raw_mark.index)
+                    //     .map_err(|_| GraphqlError::InvalidId(raw_mark.index.to_owned()))?,
+                    // user: raw_mark.user,
+                    // marker: raw_mark.marker,
+                    // timestamp: UNIX_EPOCH
+                    //     + Duration::from_secs(raw_mark.timestamp.parse::<u64>().map_err(|_| {
+                    //         GraphqlError::InvalidTimestamp(raw_mark.timestamp.to_owned())
+                    //     })?),
+                });
+            }
+
+            if (result.data.tradeHistoryItems.len() as u32) < GRAPHQL_BATCH_SIZE {
                 break;
             }
         }

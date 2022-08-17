@@ -1,0 +1,5 @@
+query TradingHistoryItems($skip: Int = 0, $first: Int = 1000) {
+  tradeHistoryItems(skip: $skip, first: $first) {
+    id
+  }
+}

@@ -7,17 +7,17 @@ use log::{debug, info};
 
 pub async fn run() -> Result<(), SettlerError>
 {
-    debug!("Fetching positions...");
+    debug!("Fetching trading history items...");
     let graphql_query: String = String::from(GRAPHQL_QUERY_URL);
     let graphql_client = GraphClient::new(graphql_query);
 
-    let positions = &graphql_client
-        .get_positions()
+    let trading_history_items = &graphql_client
+        .get_trading_history_items()
         .await
         .map_err(SettlerError::GraphqlError)?;
 
-    println!("{:#?}", positions);
-    info!("{} positions found", positions.len());
+    println!("{:#?}", trading_history_items);
+    info!("{} trading history items found", trading_history_items.len());
 
     Ok(())
 }

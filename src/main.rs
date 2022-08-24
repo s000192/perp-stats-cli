@@ -1,6 +1,7 @@
 use clap::Parser;
 use run::run;
 
+mod aggregate;
 mod contracts;
 mod error;
 mod graph_client;

@@ -1,6 +1,0 @@
-query PendingActions($skip: Int = 0, $first: Int = 100) {
-  pendingActions(orderBy: timestamp, skip: $skip, first: $first) {
-    id
-    timestamp
-  }
-}

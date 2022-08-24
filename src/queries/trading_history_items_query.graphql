@@ -1,5 +1,9 @@
 query TradingHistoryItems($skip: Int = 0, $first: Int = 1000) {
-  tradeHistoryItems(skip: $skip, first: $first) {
+  tradeHistoryItems(where:{user: "0xcc231e2c7e7f21cb12477543aa9fcd882f6fe159"}, skip: $skip, first: $first) {
     id
+    isLong
+    price
+    size
+    underlying
   }
 }

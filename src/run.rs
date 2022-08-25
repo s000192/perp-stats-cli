@@ -1,12 +1,16 @@
 use crate::{
-    aggregate::aggregate, error::*, graph_client::GraphClient, settings::GRAPHQL_QUERY_URL,
+    aggregate::aggregate,
+    error::*,
+    graph_client::GraphClient,
+    settings::{GRAPHQL_QUERY_LEGACY_BAND_URL, GRAPHQL_QUERY_PERP_UI_URL},
 };
 use log::{debug, info};
 
 pub async fn run() -> Result<(), SettlerError> {
     debug!("Fetching trading history items...");
-    let graphql_query: String = String::from(GRAPHQL_QUERY_URL);
-    let graphql_client = GraphClient::new(graphql_query);
+    let perp_ui_graphql_query: String = String::from(GRAPHQL_QUERY_PERP_UI_URL);
+    let legacy_band_graphql_query: String = String::from(GRAPHQL_QUERY_LEGACY_BAND_URL);
+    let graphql_client = GraphClient::new(perp_ui_graphql_query, legacy_band_graphql_query);
 
     let mut trading_history_items = graphql_client
         .get_trading_history_items()
@@ -14,7 +18,21 @@ pub async fn run() -> Result<(), SettlerError> {
         .map_err(SettlerError::GraphqlError)?
         .to_vec();
 
-    aggregate(&mut trading_history_items);
+    let lbtc_current_price = graphql_client
+        .get_lbtc_current_price()
+        .await
+        .map_err(SettlerError::GraphqlError)?;
+
+    let leth_current_price = graphql_client
+        .get_leth_current_price()
+        .await
+        .map_err(SettlerError::GraphqlError)?;
+
+    aggregate(
+        &mut trading_history_items,
+        &lbtc_current_price,
+        &leth_current_price,
+    );
     // println!("{:#?}", trading_history_items);
     info!(
         "{} trading history items found",

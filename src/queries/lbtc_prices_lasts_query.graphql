@@ -1,0 +1,6 @@
+query PricesLasts($skip: Int = 0, $first: Int = 1000) {
+  pricesLasts(where:{id:"lBTC"}, skip: $skip, first: $first) {
+    id
+    currentPrice
+  }
+}

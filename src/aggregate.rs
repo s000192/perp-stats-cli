@@ -1,28 +1,37 @@
 use crate::graph_client::TradingHistoryItem;
-use ethers::prelude::U256;
+use ethers::prelude::I256;
 
 #[derive(Clone, Debug)]
 pub struct Position {
-  pub size: U256,
-  pub avgEntryPrice: U256,
+  pub size: I256,
+  pub avgEntryPrice: I256,
   pub isLong: bool,
-  pub unrealizedPnl: U256,
-  pub realizedPnl: U256,
+  pub unrealizedPnl: I256,
+  pub realizedPnl: I256,
+  pub underlying: String,
 }
 
 const initial_position: Position = Position {
-  size: U256::zero(),
-  avgEntryPrice: U256::zero(),
+  size: I256::zero(),
+  avgEntryPrice: I256::zero(),
   isLong: false,
-  unrealizedPnl: U256::zero(),
-  realizedPnl: U256::zero(),
+  unrealizedPnl: I256::zero(),
+  realizedPnl: I256::zero(),
+  underlying: String::new(),
 };
 
-pub fn aggregate(trading_history_items: &mut Vec<TradingHistoryItem>) {
+pub fn aggregate(
+  trading_history_items: &mut Vec<TradingHistoryItem>,
+  lbtc_current_price: &I256,
+  leth_current_price: &I256,
+) {
   trading_history_items.sort_by(|a, b| a.id.cmp(&b.id));
 
   let mut currentEthPosition: Position = initial_position;
+  currentEthPosition.underlying = String::from("lETH");
   let mut currentBtcPosition: Position = initial_position;
+  currentBtcPosition.underlying = String::from("lBTC");
+
   let mut all_positions: Vec<Position> = vec![];
 
   let mut trading_history_items_iter = trading_history_items.iter();
@@ -34,10 +43,10 @@ pub fn aggregate(trading_history_items: &mut Vec<TradingHistoryItem>) {
       currentPosition = &mut currentBtcPosition
     }
 
-    if item.size == U256::zero()
+    if item.size == I256::zero()
       || (item.size == currentPosition.size && item.isLong != currentPosition.isLong)
     {
-      currentPosition.unrealizedPnl = U256::zero();
+      currentPosition.unrealizedPnl = I256::zero();
       // TODO: fix potential overflow
       currentPosition.realizedPnl = currentPosition.realizedPnl.saturating_add(
         currentPosition
@@ -46,42 +55,88 @@ pub fn aggregate(trading_history_items: &mut Vec<TradingHistoryItem>) {
       );
 
       all_positions.push((*currentPosition).clone());
-      *currentPosition = initial_position;
+      if item.underlying == "lETH" {
+        *currentPosition = Position {
+          size: I256::zero(),
+          avgEntryPrice: I256::zero(),
+          isLong: false,
+          unrealizedPnl: I256::zero(),
+          realizedPnl: I256::zero(),
+          underlying: String::from("lETH"),
+        };
+      } else {
+        *currentPosition = Position {
+          size: I256::zero(),
+          avgEntryPrice: I256::zero(),
+          isLong: false,
+          unrealizedPnl: I256::zero(),
+          realizedPnl: I256::zero(),
+          underlying: String::from("lBTC"),
+        };
+      }
       continue;
     }
 
-    if currentPosition.size == U256::zero() {
+    if currentPosition.size == I256::zero() {
       currentPosition.isLong = item.isLong;
       currentPosition.size = item.size;
       currentPosition.avgEntryPrice = item.price;
     } else {
+      let current_price: &I256;
+      if item.underlying == "lETH" {
+        current_price = &leth_current_price
+      } else {
+        current_price = &lbtc_current_price
+      }
+
       if currentPosition.isLong == item.isLong {
         currentPosition.size = currentPosition.size.saturating_add(item.size);
         currentPosition.avgEntryPrice = (currentPosition
           .avgEntryPrice
           .saturating_mul(currentPosition.size)
           .saturating_add(item.price.saturating_mul(item.size)))
-        .div_mod(currentPosition.size.saturating_add(item.size))
-        .0; // TODO: improve accuracy
-            // TODO: get current price from oracle
-        currentPosition.unrealizedPnl = currentPosition
-          .size
-          .saturating_mul(item.price.saturating_sub(currentPosition.avgEntryPrice));
+        .saturating_div(currentPosition.size.saturating_add(item.size)); // TODO: improve accuracy
       } else {
         currentPosition.size = currentPosition.size.saturating_sub(item.size);
         currentPosition.realizedPnl = item
           .size
           .saturating_mul(item.price.saturating_sub(currentPosition.avgEntryPrice));
-        // TODO: get current price from oracle
-        currentPosition.unrealizedPnl = currentPosition
-          .size
-          .saturating_sub(item.size)
-          .saturating_mul(item.price.saturating_sub(currentPosition.avgEntryPrice));
       }
     }
 
     match (&trading_history_items).last() {
-      Some(last_item) if last_item == item => all_positions.push((*currentPosition).clone()),
+      Some(last_item) if last_item == item => {
+        // Check current position size > 0
+        if currentEthPosition.size.gt(&I256::zero()) {
+          if currentEthPosition.isLong {
+            currentEthPosition.unrealizedPnl = currentEthPosition
+              .size
+              .saturating_mul(leth_current_price.saturating_sub(currentEthPosition.avgEntryPrice));
+          } else {
+            currentEthPosition.unrealizedPnl = currentEthPosition.size.saturating_mul(
+              currentEthPosition
+                .avgEntryPrice
+                .saturating_sub(*leth_current_price),
+            );
+          }
+          all_positions.push((currentEthPosition).clone());
+        }
+
+        if currentBtcPosition.size.gt(&I256::zero()) {
+          if currentBtcPosition.isLong {
+            currentBtcPosition.unrealizedPnl = currentBtcPosition
+              .size
+              .saturating_mul(lbtc_current_price.saturating_sub(currentBtcPosition.avgEntryPrice));
+          } else {
+            currentBtcPosition.unrealizedPnl = currentBtcPosition.size.saturating_mul(
+              currentBtcPosition
+                .avgEntryPrice
+                .saturating_sub(*lbtc_current_price),
+            );
+          }
+          all_positions.push((&currentBtcPosition).clone())
+        }
+      }
       Some(last_item) => (),
       None => (),
     }

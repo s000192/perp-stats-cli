@@ -108,33 +108,15 @@ pub fn aggregate(
       Some(last_item) if last_item == item => {
         // Check current position size > 0
         if currentEthPosition.size.gt(&I256::zero()) {
-          if currentEthPosition.isLong {
-            currentEthPosition.unrealizedPnl = currentEthPosition
-              .size
-              .saturating_mul(leth_current_price.saturating_sub(currentEthPosition.avgEntryPrice));
-          } else {
-            currentEthPosition.unrealizedPnl = currentEthPosition.size.saturating_mul(
-              currentEthPosition
-                .avgEntryPrice
-                .saturating_sub(*leth_current_price),
-            );
-          }
+          currentEthPosition.unrealizedPnl =
+            calculate_unrealized_pnl(&currentEthPosition, leth_current_price);
           all_positions.push((currentEthPosition).clone());
         }
 
         if currentBtcPosition.size.gt(&I256::zero()) {
-          if currentBtcPosition.isLong {
-            currentBtcPosition.unrealizedPnl = currentBtcPosition
-              .size
-              .saturating_mul(lbtc_current_price.saturating_sub(currentBtcPosition.avgEntryPrice));
-          } else {
-            currentBtcPosition.unrealizedPnl = currentBtcPosition.size.saturating_mul(
-              currentBtcPosition
-                .avgEntryPrice
-                .saturating_sub(*lbtc_current_price),
-            );
-          }
-          all_positions.push((&currentBtcPosition).clone())
+          currentBtcPosition.unrealizedPnl =
+            calculate_unrealized_pnl(&currentBtcPosition, lbtc_current_price);
+          all_positions.push((currentBtcPosition).clone());
         }
       }
       Some(last_item) => (),
@@ -143,4 +125,18 @@ pub fn aggregate(
   }
 
   println!("{:#?}", all_positions);
+}
+
+fn calculate_unrealized_pnl(current_position: &Position, current_price: &I256) -> I256 {
+  if current_position.isLong {
+    return current_position
+      .size
+      .saturating_mul(current_price.saturating_sub(current_position.avgEntryPrice));
+  } else {
+    return current_position.size.saturating_mul(
+      current_position
+        .avgEntryPrice
+        .saturating_sub(*current_price),
+    );
+  }
 }

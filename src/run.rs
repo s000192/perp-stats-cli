@@ -19,12 +19,12 @@ pub async fn run() -> Result<(), SettlerError> {
         .to_vec();
 
     let lbtc_current_price = graphql_client
-        .get_lbtc_current_price()
+        .get_prices_lasts("lBTC")
         .await
         .map_err(SettlerError::GraphqlError)?;
 
     let leth_current_price = graphql_client
-        .get_leth_current_price()
+        .get_prices_lasts("lETH")
         .await
         .map_err(SettlerError::GraphqlError)?;
 

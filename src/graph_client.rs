@@ -37,7 +37,15 @@ struct GraphQueryResponse<T> {
 }
 
 #[derive(Serialize, Deserialize)]
-struct GraphQueryVariables {
+struct TradingHistoryItemsGraphQueryVariables {
+    user: String,
+    skip: u32,
+    first: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PricesLastsGraphQueryVariables {
+    id: String,
     skip: u32,
     first: u32,
 }
@@ -87,7 +95,8 @@ impl GraphClient {
         loop {
             let query = GraphQueryRequest {
                 query: String::from(query_str),
-                variables: GraphQueryVariables {
+                variables: TradingHistoryItemsGraphQueryVariables {
+                    user: String::from("0xcc231e2c7e7f21cb12477543aa9fcd882f6fe159"),
                     skip: all_items.len() as u32,
                     first: GRAPHQL_BATCH_SIZE,
                 },
@@ -131,22 +140,13 @@ impl GraphClient {
         Ok(all_items)
     }
 
-    pub async fn get_lbtc_current_price(&self) -> Result<I256, GraphqlError> {
-        let lbtc_query_str = include_str!("./queries/lbtc_prices_lasts_query.graphql");
+    pub async fn get_prices_lasts(&self, asset: &str) -> Result<I256, GraphqlError> {
+        let query_str = include_str!("./queries/prices_lasts_query.graphql");
 
-        self.get_prices_lasts(String::from(lbtc_query_str)).await
-    }
-
-    pub async fn get_leth_current_price(&self) -> Result<I256, GraphqlError> {
-        let leth_query_str = include_str!("./queries/leth_prices_lasts_query.graphql");
-
-        self.get_prices_lasts(String::from(leth_query_str)).await
-    }
-
-    async fn get_prices_lasts(&self, query: String) -> Result<I256, GraphqlError> {
         let query = GraphQueryRequest {
-            query,
-            variables: GraphQueryVariables {
+            query: String::from(query_str),
+            variables: PricesLastsGraphQueryVariables {
+                id: String::from(asset),
                 skip: 0 as u32,
                 first: 1 as u32,
             },

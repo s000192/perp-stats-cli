@@ -81,7 +81,6 @@ pub fn aggregate(
           underlying: String::from("lBTC"),
         };
       }
-      continue;
     }
 
     // if position is not opened yet,

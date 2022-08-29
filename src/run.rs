@@ -28,16 +28,12 @@ pub async fn run(user: &String) -> Result<(), SettlerError> {
         .await
         .map_err(SettlerError::GraphqlError)?;
 
-    aggregate(
+    let all_positions = aggregate(
         &mut trading_history_items,
         &lbtc_current_price,
         &leth_current_price,
     );
-
-    info!(
-        "{} trading history items found",
-        trading_history_items.len()
-    );
+    println!("{:#?}", all_positions);
 
     Ok(())
 }

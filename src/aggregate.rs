@@ -24,7 +24,7 @@ pub fn aggregate(
   trading_history_items: &mut Vec<TradingHistoryItem>,
   lbtc_current_price: &I256,
   leth_current_price: &I256,
-) {
+) -> Vec<Position> {
   trading_history_items.sort_by(|a, b| a.id.cmp(&b.id));
 
   let mut currentEthPosition: Position = initial_position;
@@ -133,7 +133,7 @@ pub fn aggregate(
     }
   }
 
-  println!("{:#?}", all_positions);
+  all_positions
 }
 
 fn calculate_unrealized_pnl(current_position: &Position, current_price: &I256) -> I256 {

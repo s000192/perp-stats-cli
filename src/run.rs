@@ -33,7 +33,7 @@ pub async fn run(user: &String) -> Result<(), SettlerError> {
         &lbtc_current_price,
         &leth_current_price,
     );
-    // println!("{:#?}", trading_history_items);
+
     info!(
         "{} trading history items found",
         trading_history_items.len()

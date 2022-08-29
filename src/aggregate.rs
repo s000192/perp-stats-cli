@@ -36,6 +36,7 @@ pub fn aggregate(
 
   let mut trading_history_items_iter = trading_history_items.iter();
   for item in &mut trading_history_items_iter {
+    // initialize currentPosition based on underlying of trading history item
     let currentPosition: &mut Position;
     if item.underlying == "lETH" {
       currentPosition = &mut currentEthPosition
@@ -43,18 +44,24 @@ pub fn aggregate(
       currentPosition = &mut currentBtcPosition
     }
 
-    if item.size == I256::zero()
-      || (item.size == currentPosition.size && item.isLong != currentPosition.isLong)
+    // close position when
+    // 1. trading history item size == 0 OR trading history item size == current position size
+    // 2. trading history isLong is opposite to that of current position
+    if (item.size == I256::zero() || item.size == currentPosition.size)
+      && item.isLong != currentPosition.isLong
     {
       currentPosition.unrealizedPnl = I256::zero();
       // TODO: fix potential overflow
+      // TODO: deduct platform fees
       currentPosition.realizedPnl = currentPosition.realizedPnl.saturating_add(
         currentPosition
           .size
           .saturating_mul(item.price.saturating_sub(currentPosition.avgEntryPrice)),
       );
 
+      // push currentPosition values to array of all positions after calculating realized pnl
       all_positions.push((*currentPosition).clone());
+      // reset currentPosition based on underlying of trading history item
       if item.underlying == "lETH" {
         *currentPosition = Position {
           size: I256::zero(),
@@ -77,18 +84,15 @@ pub fn aggregate(
       continue;
     }
 
+    // if position is not opened yet,
+    // set values of currentPosition as that of trading history item
     if currentPosition.size == I256::zero() {
       currentPosition.isLong = item.isLong;
       currentPosition.size = item.size;
       currentPosition.avgEntryPrice = item.price;
     } else {
-      let current_price: &I256;
-      if item.underlying == "lETH" {
-        current_price = &leth_current_price
-      } else {
-        current_price = &lbtc_current_price
-      }
-
+      // if the trading action is add position,
+      // amend avg entry price and size accordingly
       if currentPosition.isLong == item.isLong {
         currentPosition.size = currentPosition.size.saturating_add(item.size);
         currentPosition.avgEntryPrice = (currentPosition
@@ -97,7 +101,10 @@ pub fn aggregate(
           .saturating_add(item.price.saturating_mul(item.size)))
         .saturating_div(currentPosition.size.saturating_add(item.size)); // TODO: improve accuracy
       } else {
+        // if the trading action is close position by amount
+        // amend size and realized pnl accordingly
         currentPosition.size = currentPosition.size.saturating_sub(item.size);
+        // TDOO: deduct platform fees
         currentPosition.realizedPnl = item
           .size
           .saturating_mul(item.price.saturating_sub(currentPosition.avgEntryPrice));
@@ -105,6 +112,9 @@ pub fn aggregate(
     }
 
     match (&trading_history_items).last() {
+      // before the loop ends,
+      // 1. calculate unrealized pnl
+      // 2. add current eth and btc position to array of positions
       Some(last_item) if last_item == item => {
         // Check current position size > 0
         if currentEthPosition.size.gt(&I256::zero()) {
@@ -128,6 +138,7 @@ pub fn aggregate(
 }
 
 fn calculate_unrealized_pnl(current_position: &Position, current_price: &I256) -> I256 {
+  // TODO: deduct platform fees
   if current_position.isLong {
     return current_position
       .size

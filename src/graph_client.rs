@@ -87,7 +87,10 @@ impl GraphClient {
         }
     }
 
-    pub async fn get_trading_history_items(&self) -> Result<Vec<TradingHistoryItem>, GraphqlError> {
+    pub async fn get_trading_history_items(
+        &self,
+        user: &String,
+    ) -> Result<Vec<TradingHistoryItem>, GraphqlError> {
         let mut all_items: Vec<TradingHistoryItem> = vec![];
 
         let query_str = include_str!("./queries/trading_history_items_query.graphql");
@@ -96,7 +99,7 @@ impl GraphClient {
             let query = GraphQueryRequest {
                 query: String::from(query_str),
                 variables: TradingHistoryItemsGraphQueryVariables {
-                    user: String::from("0xcc231e2c7e7f21cb12477543aa9fcd882f6fe159"),
+                    user: (&user).to_string(),
                     skip: all_items.len() as u32,
                     first: GRAPHQL_BATCH_SIZE,
                 },

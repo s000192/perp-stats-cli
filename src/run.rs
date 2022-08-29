@@ -6,14 +6,14 @@ use crate::{
 };
 use log::{debug, info};
 
-pub async fn run() -> Result<(), SettlerError> {
+pub async fn run(user: &String) -> Result<(), SettlerError> {
     debug!("Fetching trading history items...");
     let perp_ui_graphql_query: String = String::from(GRAPHQL_QUERY_PERP_UI_URL);
     let legacy_band_graphql_query: String = String::from(GRAPHQL_QUERY_LEGACY_BAND_URL);
     let graphql_client = GraphClient::new(perp_ui_graphql_query, legacy_band_graphql_query);
 
     let mut trading_history_items = graphql_client
-        .get_trading_history_items()
+        .get_trading_history_items(&user)
         .await
         .map_err(SettlerError::GraphqlError)?
         .to_vec();

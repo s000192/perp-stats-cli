@@ -1,5 +1,5 @@
 query TradingHistoryItems($user: String, $skip: Int = 0, $first: Int = 1000) {
-  tradeHistoryItems(where:{user: $user}, skip: $skip, first: $first) {
+  tradeHistoryItems(where:{user: $user, status: 1}, skip: $skip, first: $first) {
     id
     isLong
     price

@@ -24,7 +24,7 @@ pub fn aggregate(
   trading_history_items: &mut Vec<TradingHistoryItem>,
   lbtc_current_price: &I256,
   leth_current_price: &I256,
-) -> Vec<Position> {
+) -> Option<Vec<Position>> {
   trading_history_items.sort_by(|a, b| a.id.cmp(&b.id));
 
   let mut currentEthPosition: Position = initial_position;
@@ -51,13 +51,12 @@ pub fn aggregate(
       && item.isLong != currentPosition.isLong
     {
       currentPosition.unrealizedPnl = I256::zero();
-      // TODO: fix potential overflow
       // TODO: deduct platform fees
-      currentPosition.realizedPnl = currentPosition.realizedPnl.saturating_add(
+      currentPosition.realizedPnl = currentPosition.realizedPnl.checked_add(
         currentPosition
           .size
-          .saturating_mul(item.price.saturating_sub(currentPosition.avgEntryPrice)),
-      );
+          .checked_mul(item.price.checked_sub(currentPosition.avgEntryPrice)?)?,
+      )?;
 
       // push currentPosition values to array of all positions after calculating realized pnl
       all_positions.push((*currentPosition).clone());
@@ -93,20 +92,20 @@ pub fn aggregate(
       // if the trading action is add position,
       // amend avg entry price and size accordingly
       if currentPosition.isLong == item.isLong {
-        currentPosition.size = currentPosition.size.saturating_add(item.size);
+        currentPosition.size = currentPosition.size.checked_add(item.size)?;
         currentPosition.avgEntryPrice = (currentPosition
           .avgEntryPrice
-          .saturating_mul(currentPosition.size)
-          .saturating_add(item.price.saturating_mul(item.size)))
-        .saturating_div(currentPosition.size.saturating_add(item.size)); // TODO: improve accuracy
+          .checked_mul(currentPosition.size)?
+          .checked_add(item.price.checked_mul(item.size)?))?
+        .checked_div(currentPosition.size.checked_add(item.size)?)?; // TODO: improve accuracy
       } else {
         // if the trading action is close position by amount
         // amend size and realized pnl accordingly
-        currentPosition.size = currentPosition.size.saturating_sub(item.size);
+        currentPosition.size = currentPosition.size.checked_sub(item.size)?;
         // TDOO: deduct platform fees
         currentPosition.realizedPnl = item
           .size
-          .saturating_mul(item.price.saturating_sub(currentPosition.avgEntryPrice));
+          .checked_mul(item.price.checked_sub(currentPosition.avgEntryPrice)?)?;
       }
     }
 
@@ -118,13 +117,13 @@ pub fn aggregate(
         // Check current position size > 0
         if currentEthPosition.size.gt(&I256::zero()) {
           currentEthPosition.unrealizedPnl =
-            calculate_unrealized_pnl(&currentEthPosition, leth_current_price);
+            calculate_unrealized_pnl(&currentEthPosition, leth_current_price)?;
           all_positions.push((currentEthPosition).clone());
         }
 
         if currentBtcPosition.size.gt(&I256::zero()) {
           currentBtcPosition.unrealizedPnl =
-            calculate_unrealized_pnl(&currentBtcPosition, lbtc_current_price);
+            calculate_unrealized_pnl(&currentBtcPosition, lbtc_current_price)?;
           all_positions.push((currentBtcPosition).clone());
         }
       }
@@ -133,20 +132,18 @@ pub fn aggregate(
     }
   }
 
-  all_positions
+  Some(all_positions)
 }
 
-fn calculate_unrealized_pnl(current_position: &Position, current_price: &I256) -> I256 {
+fn calculate_unrealized_pnl(current_position: &Position, current_price: &I256) -> Option<I256> {
   // TODO: deduct platform fees
   if current_position.isLong {
     return current_position
       .size
-      .saturating_mul(current_price.saturating_sub(current_position.avgEntryPrice));
+      .checked_mul(current_price.checked_sub(current_position.avgEntryPrice)?);
   } else {
-    return current_position.size.saturating_mul(
-      current_position
-        .avgEntryPrice
-        .saturating_sub(*current_price),
-    );
+    return current_position
+      .size
+      .checked_mul(current_position.avgEntryPrice.checked_sub(*current_price)?);
   }
 }

@@ -1,5 +1,5 @@
 use crate::graph_client::TradingHistoryItem;
-use ethers::prelude::I256;
+use ethers::{prelude::I256, utils::format_units};
 
 #[derive(Clone, Debug)]
 pub struct Position {
@@ -8,6 +8,16 @@ pub struct Position {
   pub isLong: bool,
   pub unrealizedPnl: I256,
   pub realizedPnl: I256,
+  pub underlying: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct FormattedPosition {
+  pub size: String,
+  pub avgEntryPrice: String,
+  pub isLong: bool,
+  pub unrealizedPnl: String,
+  pub realizedPnl: String,
   pub underlying: String,
 }
 
@@ -24,7 +34,7 @@ pub fn aggregate(
   trading_history_items: &mut Vec<TradingHistoryItem>,
   lbtc_current_price: &I256,
   leth_current_price: &I256,
-) -> Option<Vec<Position>> {
+) -> Option<Vec<FormattedPosition>> {
   trading_history_items.sort_by(|a, b| a.id.cmp(&b.id));
 
   let mut currentEthPosition: Position = initial_position;
@@ -132,7 +142,44 @@ pub fn aggregate(
     }
   }
 
-  Some(all_positions)
+  format_positions(all_positions)
+}
+
+fn format_positions(all_positions: Vec<Position>) -> Option<Vec<FormattedPosition>> {
+  let mut all_formatted_positions: Vec<FormattedPosition> = vec![];
+
+  for position in all_positions.iter() {
+    let size_sign = I256::is_positive(position.size);
+    let formatted_size_value = format_units(I256::into_raw(position.size), 18).ok()?;
+
+    let realized_pnl_sign = I256::is_positive(position.realizedPnl);
+    let formatted_realized_pnl_value =
+      format_units(I256::into_raw(position.realizedPnl), 36).ok()?;
+
+    let unrealized_pnl_sign = I256::is_positive(position.unrealizedPnl);
+    let formatted_unrealized_pnl_value =
+      format_units(I256::into_raw(position.unrealizedPnl), 36).ok()?;
+
+    all_formatted_positions.push(FormattedPosition {
+      size: match size_sign {
+        true => formatted_size_value,
+        false => format!("{}{}", "-", formatted_size_value),
+      },
+      avgEntryPrice: format_units(I256::into_raw(position.avgEntryPrice), 18).ok()?,
+      isLong: position.isLong,
+      unrealizedPnl: match unrealized_pnl_sign {
+        true => formatted_unrealized_pnl_value,
+        false => format!("{}{}", "-", formatted_unrealized_pnl_value),
+      },
+      realizedPnl: match realized_pnl_sign {
+        true => formatted_realized_pnl_value,
+        false => format!("{}{}", "-", formatted_realized_pnl_value),
+      },
+      underlying: position.underlying.clone(),
+    })
+  }
+
+  Some(all_formatted_positions)
 }
 
 fn calculate_unrealized_pnl(current_position: &Position, current_price: &I256) -> Option<I256> {
